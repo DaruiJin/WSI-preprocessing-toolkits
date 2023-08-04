@@ -96,6 +96,7 @@ def stitching(wsi: openslide.OpenSlide, coords: list, patch_size: float | int, p
     print(f'Number of patches: {len(coords)}')
     print(f'Patch size: {patch_size}x{patch_size} at patch level: {patch_level}')
     print(f'Ref patch size: {patch_size*int(wsi.level_downsamples[patch_level])}')
+    patch_size = int(patch_size * wsi.level_downsamples[patch_level])  # ref patchsize at the highest resolution
     heatmap = Image.new(size=(w, h), mode="RGB", color=(0, 0, 0))
     heatmap = np.array(heatmap)
     heatmap = DrawMapFromCoords(heatmap, wsi, coords, patch_size, vis_level)
