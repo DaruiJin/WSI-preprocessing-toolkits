@@ -1,6 +1,6 @@
 import os
 import argparse
-from seg_tiling import segment_tiling
+from segment_patching import segment_tiling
 
 
 parser = argparse.ArgumentParser(description='Tiling')
