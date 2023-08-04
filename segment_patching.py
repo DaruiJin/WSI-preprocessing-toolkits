@@ -47,7 +47,7 @@ def patching(wsi: openslide.OpenSlide, contours: list, holes: list, tile_save_di
     ref_patch_size = int(patch_size * patch_downsample)  # 最高分辨率对应尺寸
     ref_step_size = int(step_size * patch_downsample)  # 最高分辨率对应步长
     slide_id = os.path.basename(slide_path).split('.')[0]
-
+    coord_record = []
     for cont_idx, cont in enumerate(contours):
         start_x, start_y, w, h = cv2.boundingRect(cont)
         stop_x = start_x + w
@@ -69,7 +69,6 @@ def patching(wsi: openslide.OpenSlide, contours: list, holes: list, tile_save_di
         pool.close()
         results = np.array([result for result in results if result is not None])
         print('Extracted {} points within the contour'.format(len(results)))
-        coord_record = []
         if len(results)>1:
             asset_dict = {'coords': results}
             coord_record.extend(results)
