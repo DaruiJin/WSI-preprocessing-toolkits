@@ -139,9 +139,8 @@ def process_coord_candidate(coord: np.array, contour_holes: list, ref_patch_size
     else:
         return None
 
-def isWhitePatch(patch: np.array, satThresh: int|float=5)->bool:
-    patch_hsv = cv2.cvtColor(patch, cv2.COLOR_RGB2HSV)
-    return True if np.mean(patch_hsv[:,:,1]) < satThresh else False
+def isWhitePatch(patch: np.array, satThresh: int|float=240)->bool:
+    return True if patch.mean() > satThresh else False
 
 
 def tileWriter(wsi: openslide.OpenSlide, coord: Union[np.array, tuple], attr_dict: dict)->bool:
@@ -157,6 +156,7 @@ def tileWriter(wsi: openslide.OpenSlide, coord: Union[np.array, tuple], attr_dic
 def save_tiles(slide_path: str, asset_dict: dict, attr_dict: dict)->None:
     wsi = openslide.open_slide(slide_path)
     coords = asset_dict['coords']
+    coords = coords[1:] if np.array_equal(coords[0], np.array([0, 0])) else coords  # problems with (0, 0)
     num_workers = mp.cpu_count()
     if num_workers > 4:
         num_workers = 24
