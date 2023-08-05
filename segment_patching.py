@@ -10,6 +10,7 @@ import pandas as pd
 from PIL import Image
 from utils import *
 import multiprocessing as mp
+import pdb
 
 
 def segment(wsi: openslide.OpenSlide)->tuple[list, list, Image.Image, float]:
@@ -71,7 +72,6 @@ def patching(wsi: openslide.OpenSlide, contours: list, holes: list, tile_save_di
         print('Extracted {} points within the contour'.format(len(results)))
         if len(results)>1:
             asset_dict = {'coords': results}
-            coord_record.extend(results)
             attr = {'patch_size' :            patch_size, 
                     'patch_level' :           patch_level,
                     'downsample':             wsi.level_downsamples[patch_level],
@@ -80,7 +80,8 @@ def patching(wsi: openslide.OpenSlide, contours: list, holes: list, tile_save_di
                     'save_path':              tile_save_dir}
             attr_dict = {'coords': attr}
             os.makedirs(os.path.join(tile_save_dir, slide_id), exist_ok=True)
-            save_tiles(slide_path, asset_dict, attr_dict['coords'])
+            final_coords = save_tiles(slide_path, asset_dict, attr_dict['coords'])
+            coord_record.extend(final_coords)
     return coord_record, time.time() - start_time
 
 
@@ -96,7 +97,7 @@ def stitching(wsi: openslide.OpenSlide, coords: list, patch_size: float | int, p
     print(f'Number of patches: {len(coords)}')
     print(f'Patch size: {patch_size}x{patch_size} at patch level: {patch_level}')
     print(f'Ref patch size: {patch_size*int(wsi.level_downsamples[patch_level])}')
-    patch_size = int(patch_size * wsi.level_downsamples[patch_level])  # ref patchsize at the highest resolution
+    patch_size = int(patch_size * wsi.level_downsamples[patch_level])
     heatmap = Image.new(size=(w, h), mode="RGB", color=(0, 0, 0))
     heatmap = np.array(heatmap)
     heatmap = DrawMapFromCoords(heatmap, wsi, coords, patch_size, vis_level)
@@ -105,7 +106,10 @@ def stitching(wsi: openslide.OpenSlide, coords: list, patch_size: float | int, p
 
 def segment_tiling(source: str, save_dir: str, tile_save_dir: str, mask_save_dir: str, stitch_save_dir: str,
                    patch_size: int | float =256, patch_level: int | float =0, step_size: int | float =256)->None:
-    slides = sorted(glob.glob(os.path.join(source, '*.svs')))
+    if source.endswith('.csv'):
+        slides = sorted(pd.read_csv(source)['file_path'].tolist())  # source是csv路径时使用
+    else:
+        slides = sorted(glob.glob(os.path.join(source, '*.svs')))  # source是svs路径时使用
     d = {}
     d["slide_path"] = slides
     df = pd.DataFrame(d)

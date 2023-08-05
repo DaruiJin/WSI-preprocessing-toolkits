@@ -5,6 +5,7 @@ from segment_patching import segment_tiling
 
 parser = argparse.ArgumentParser(description='Tiling')
 parser.add_argument('--source_dir', type=str, help='path to the source slide image (.svs) directory')
+parser.add_argument('--source_list', type=str, help='list of path to the source slide image (.svs) list')
 parser.add_argument('--save_dir', type=str, help='path to the save directory')
 parser.add_argument('--patch_size', type=int, default=256, help='patch size')
 parser.add_argument('--step_size', type=int, default=256, help='step size')
@@ -17,13 +18,15 @@ if __name__=='__main__':
     tile_save_dir = os.path.join(args.save_dir, 'tiles')
     mask_save_dir = os.path.join(args.save_dir, 'masks')
     stitch_save_dir = os.path.join(args.save_dir, 'stitches')
-    directories = {'source': args.source_dir,
+    directories = {'source': args.source_list if args.source_list else args.source_dir,
                    'save_dir': args.save_dir,
                    'tile_save_dir': tile_save_dir,
                    'mask_save_dir': mask_save_dir,
                    'stitch_save_dir': stitch_save_dir}
     
     for key, val in directories.items():
+            if key == 'source':
+                continue
             os.makedirs(val, exist_ok=True)
 
     seg_time = segment_tiling(**directories, patch_size=args.patch_size, patch_level=args.patch_level, step_size= args.step_size)

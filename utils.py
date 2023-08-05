@@ -139,8 +139,8 @@ def process_coord_candidate(coord: np.array, contour_holes: list, ref_patch_size
     else:
         return None
 
-def isWhitePatch(patch: np.array, satThresh: int|float=240)->bool:
-    return True if patch.mean() > satThresh else False
+def isWhitePatch(patch: np.array, thresh: int|float=240)->bool:
+    return True if patch.mean() > thresh else False
 
 
 def tileWriter(wsi: openslide.OpenSlide, coord: Union[np.array, tuple], attr_dict: dict)->bool:
@@ -148,20 +148,25 @@ def tileWriter(wsi: openslide.OpenSlide, coord: Union[np.array, tuple], attr_dic
     if not isWhitePatch(patch):
         patch = cv2.cvtColor(patch, cv2.COLOR_RGB2BGR)
         cv2.imwrite(os.path.join(attr_dict['save_path'], attr_dict['name'], f"{attr_dict['name']}_x_y_{coord[0]}_{coord[1]}.png"), patch)
-        return True
+        return coord
     else:
-        return False
+        return None
 
 
 def save_tiles(slide_path: str, asset_dict: dict, attr_dict: dict)->None:
     wsi = openslide.open_slide(slide_path)
     coords = asset_dict['coords']
-    coords = coords[1:] if np.array_equal(coords[0], np.array([0, 0])) else coords  # problems with (0, 0)
+    coords = coords[1:] if np.array_equal(coords[0], np.array([0, 0])) else coords
     num_workers = mp.cpu_count()
     if num_workers > 4:
-        num_workers = 24
+        num_workers = 32
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        executor.map(tileWriter, [wsi]*len(coords), coords, [attr_dict]*len(coords))
+        results = executor.map(tileWriter, [wsi]*len(coords), coords, [attr_dict]*len(coords))
+    filtered_coords = []
+    for item in results:
+        if item is not None:
+            filtered_coords.append(item)
+    return np.array(filtered_coords)
 
 
 def DrawGrid(img: np.array, coord: np.array, shape: int|float, thickness: int|float=2, color:tuple=(0,0,0,255))->np.array:
