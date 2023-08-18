@@ -10,6 +10,7 @@ from PIL import Image
 import typing as tp
 from typing import Union
 import pandas as pd
+from slide_lib.constants_color import PENS_RGB
 
 
 def filter_contours(contours: list, hierarchy: np.array, filter_params: dict)->tuple[list, list]:
@@ -152,7 +153,7 @@ def tileWriter(wsi: openslide.OpenSlide, coord: Union[np.array, tuple], attr_dic
     patch = wsi.read_region(coord, attr_dict['patch_level'], 
                             (int(attr_dict['patch_size']*attr_dict['downsample']), int(attr_dict['patch_size']*attr_dict['downsample']))).convert('RGB')
     patch = np.array(patch.resize((attr_dict['patch_size'], attr_dict['patch_size'])))
-    if not isWhitePatch(patch):
+    if not isWhitePatch(patch) and not isBlackPatch(patch):
         patch = cv2.cvtColor(patch, cv2.COLOR_RGB2BGR)
         cv2.imwrite(os.path.join(attr_dict['save_path'], attr_dict['name'], f"{attr_dict['name']}_x_y_{coord[0]}_{coord[1]}.png"), patch)
         return coord
@@ -205,3 +206,38 @@ def write_tile_info(tile_df: pd.DataFrame, results: np.array, slide_id: str, til
     slide_info = [slide_id] * len(results)
     tile_df = pd.concat([tile_df, pd.DataFrame({'file_path': file_path, 'slide': slide_info, 'family': tile_annot})], ignore_index=True)
     return tile_df
+
+
+def pen_percent(bands, pen_color):
+    r, g, b = bands[:, :, 0], bands[:, :, 1], bands[:, :, 2]
+    thresholds = PENS_RGB[pen_color]
+
+    if pen_color == "red":
+        t = thresholds[0]
+        mask = (r > t[0]) & (g < t[1]) & (b < t[2])
+
+        for t in thresholds[1:]:
+            mask = mask | ((r > t[0]) & (g < t[1]) & (b < t[2]))
+
+    elif pen_color == "green":
+        t = thresholds[0]
+        mask = (r < t[0]) & (g > t[1]) & (b > t[2])
+
+        for t in thresholds[1:]:
+            mask = mask | (r < t[0]) & (g > t[1]) & (b > t[2])
+
+    elif pen_color == "blue":
+        t = thresholds[0]
+        mask = (r < t[0]) & (g < t[1]) & (b > t[2])
+
+        for t in thresholds[1:]:
+            mask = mask | (r < t[0]) & (g < t[1]) & (b > t[2])
+
+    else:
+        raise Exception(f"Error: pen_color='{pen_color}' not supported")
+
+    # percentage = mask.avg() / 255.0
+    # percentage = np.round(percentage, decimals=5) if percentage > 0 else 0
+
+    return mask
+

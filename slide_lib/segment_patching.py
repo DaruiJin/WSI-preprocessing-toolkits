@@ -10,6 +10,7 @@ import multiprocessing as mp
 from slide_lib import *
 import pyarrow as pa
 import pyarrow.parquet as pq
+import yaml
 slide_annot = pd.read_csv('/omics/odcf/analysis/OE0606_projects/pancancer_histopathology/analysis/daruijin/brain_tumor/info/slide_labels.csv', header=0)
 
 
@@ -17,10 +18,14 @@ def segment(wsi: openslide.OpenSlide)->tuple[list, list, Image.Image, float]:
     start_time = time.time()
     seg_level = wsi.level_count - 1
     img = np.array(wsi.read_region((0, 0), seg_level, wsi.level_dimensions[-1]).convert('RGB'))  # 最低分辨率下进行分割
+    r_pen = pen_percent(img, 'red')
+    g_pen = pen_percent(img, 'green')
+    b_pen = pen_percent(img, 'blue')
+    wo_pen_mask = ~(r_pen | g_pen | b_pen)
     img_gray = 255 - cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     bw_1 = hysteresis_threshold(img_gray).astype(np.uint8)
     bw_2 = gray_filter(img)
-    bw = move_small((bw_1 & bw_2)).astype(np.uint8)
+    bw = move_small((bw_1 & bw_2 & wo_pen_mask)).astype(np.uint8)
     
     scale = wsi.level_downsamples[seg_level]
     scaled_ref_patch_area = int(512 ** 2 / scale ** 2)
@@ -30,7 +35,7 @@ def segment(wsi: openslide.OpenSlide)->tuple[list, list, Image.Image, float]:
     foreground_contours, hole_contours = filter_contours(contours, hierarchy, {'a_t':10 * scaled_ref_patch_area, 'a_h': 10 * scaled_ref_patch_area, 'max_n_holes':8})
     
     # save mask file
-    line_thickness = int(200 / scale)
+    line_thickness = int(100 / scale)
     cv2.drawContours(img, foreground_contours, -1, (0, 255, 0), line_thickness, lineType=cv2.LINE_8)
     img = Image.fromarray(img)
 
@@ -109,9 +114,12 @@ def stitching(wsi: openslide.OpenSlide, coords: list, patch_size: float | int, m
 
 
 def segment_tiling(source: str, save_dir: str, tile_save_dir: str, mask_save_dir: str, stitch_save_dir: str,
-                   patch_size: int | float =256, mag_level: int | float =20, step_size: int | float =256)->None:
-    if source.endswith('.csv'):
-        slides = sorted(pd.read_csv(source)['file_path'].tolist())  # source是csv路径时使用
+                   patch_size: int | float =256, mag_level: int | float =20, step_size: int | float =256, index: int = 0)->None:
+    if source.endswith('.yaml'):
+        with open(source, 'r') as f:
+            slides = yaml.safe_load(f)['slide_id']
+        slides = [os.path.join('/omics/odcf/analysis/OE0606_projects/pancancer_histopathology/data/UKHD_NP_HE', slide+'.svs') for slide in slides]
+        # slides = sorted(pd.read_csv(source)['file_path'].tolist())  # source是csv路径时使用
     else:
         slides = sorted(glob.glob(os.path.join(source, '*.svs')))  # source是svs路径时使用
 
@@ -147,8 +155,8 @@ def segment_tiling(source: str, save_dir: str, tile_save_dir: str, mask_save_dir
     
     df.to_csv(os.path.join(save_dir, 'slide_info.csv'), index=False)
     pq.write_table(pa.Table.from_pandas(tile_df), os.path.join(save_dir, 'tile_info.parquet'))
-    print(f"\nslide info (mpp, magnification) saved to {os.path.join(save_dir, 'slide_info.csv')}")
-    print(f"tile info (file_path, slide, family) saved to {os.path.join(tile_save_dir, 'tile_info.parquet')}")
+    print(f"\nslide info (mpp, magnification) saved to {os.path.join(save_dir, f'slide_info_{index}.csv')}")
+    print(f"tile info (file_path, slide, family) saved to {os.path.join(save_dir, f'tile_info_{index}.parquet')}")
     seg_time /= len(df)
     tile_time /= len(df)
     stitch_time /= len(df)
