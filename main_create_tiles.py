@@ -24,7 +24,7 @@ from slide_lib import segment_tiling
 @click.option('--step_size', type=int, default=256, help='step size')
 @click.option('--mag', type=int, default=20, help='magnification for patch extraction')
 @click.option('--process_list', type=str, default=None, help='name of list of images to process with parameters (.csv)')
-@click.option('--index', type=int, default=None)
+@click.option('--index', type=int, default=None, help='index of the slide list to process')
 
 def batch_tiling(source_dir: str, source_list: str, save_dir: str, patch_size: int, step_size: int, mag: int, process_list: str, index: int) -> None:
     """
