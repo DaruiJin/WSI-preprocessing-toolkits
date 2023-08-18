@@ -118,8 +118,7 @@ def segment_tiling(source: str, save_dir: str, tile_save_dir: str, mask_save_dir
     if source.endswith('.yaml'):
         with open(source, 'r') as f:
             slides = yaml.safe_load(f)['slide_id']
-        slides = [os.path.join('/omics/odcf/analysis/OE0606_projects/pancancer_histopathology/data/UKHD_NP_HE', slide+'.svs') for slide in slides]
-        # slides = sorted(pd.read_csv(source)['file_path'].tolist())  # source是csv路径时使用
+        slides = [os.path.join('./SLIDE', slide+'.svs') for slide in slides]
     else:
         slides = sorted(glob.glob(os.path.join(source, '*.svs')))  # source是svs路径时使用
 
