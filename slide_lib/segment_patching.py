@@ -11,7 +11,7 @@ from slide_lib import *
 import pyarrow as pa
 import pyarrow.parquet as pq
 import yaml
-slide_annot = pd.read_csv('/omics/odcf/analysis/OE0606_projects/pancancer_histopathology/analysis/daruijin/brain_tumor/info/slide_labels.csv', header=0)
+slide_annot = pd.read_csv('./slide_labels.csv', header=0)
 
 
 def segment(wsi: openslide.OpenSlide)->tuple[list, list, Image.Image, float]:
