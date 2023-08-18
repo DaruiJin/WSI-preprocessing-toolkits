@@ -24,8 +24,9 @@ from slide_lib import segment_tiling
 @click.option('--step_size', type=int, default=256, help='step size')
 @click.option('--mag', type=int, default=20, help='magnification for patch extraction')
 @click.option('--process_list', type=str, default=None, help='name of list of images to process with parameters (.csv)')
+@click.option('--index', type=int, default=None)
 
-def batch_tiling(source_dir: str, source_list: str, save_dir: str, patch_size: int, step_size: int, mag: int, process_list: str) -> None:
+def batch_tiling(source_dir: str, source_list: str, save_dir: str, patch_size: int, step_size: int, mag: int, process_list: str, index: int) -> None:
     """
     Tile whole slide images stored in the .svs format at the desired magnification.
     
@@ -41,8 +42,8 @@ def batch_tiling(source_dir: str, source_list: str, save_dir: str, patch_size: i
         Patch size.
     step_size : int
         Step size.
-    patch_level : int
-        Downsample level for patch extraction.
+    mag : int
+        Magnification for patch extraction.
     process_list : str
         Name of list of images to process with parameters (.csv).
 
@@ -65,7 +66,7 @@ def batch_tiling(source_dir: str, source_list: str, save_dir: str, patch_size: i
                 continue
             os.makedirs(val, exist_ok=True)
 
-    total_time = segment_tiling(**directories, patch_size=patch_size, mag_level=mag, step_size= step_size)
+    total_time = segment_tiling(**directories, patch_size=patch_size, mag_level=mag, step_size= step_size, index=index)
     print(f"The average processing time for each slide is {total_time:.2f} seconds.")
 
 
