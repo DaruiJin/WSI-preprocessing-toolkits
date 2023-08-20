@@ -75,7 +75,7 @@ def hysteresis_threshold(gray: np.array, low: int | float=20, high: int | float=
     return result
 
 
-def gray_filter(rgb: np.array, tolerance: int | float=7)->np.array:
+def gray_filter(rgb: np.array, tolerance: int | float=10)->np.array:
     rgb = rgb.astype(np.int32)
     rg_diff = (abs(rgb[:, :, 0] - rgb[:, :, 1]) <= tolerance)
     rb_diff = (abs(rgb[:, :, 0] - rgb[:, :, 2]) <= tolerance)
