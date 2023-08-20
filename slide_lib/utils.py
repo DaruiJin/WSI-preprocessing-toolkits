@@ -63,23 +63,73 @@ def filter_contours(contours: list, hierarchy: np.array, filter_params: dict)->t
 
 
 def move_small(mask: np.array)->np.array:
-    rem_sm = sk_morphology.remove_small_objects(mask.astype(bool), 1600)
-    result = sk_morphology.remove_small_holes(rem_sm, 50)
+    # rem_sm = sk_morphology.remove_small_objects(mask.astype(bool), 60)
+    # result = sk_morphology.remove_small_holes(rem_sm, 50)
+    kernel = np.ones((10,10),np.uint8)
+    result = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     return result
 
 
-def hysteresis_threshold(gray: np.array, low: int | float=30, high: int | float=60)->np.array:
+def hysteresis_threshold(gray: np.array, low: int | float=20, high: int | float=50)->np.array:
     result = sk_filters.apply_hysteresis_threshold(gray, low, high)
     return result
 
 
-def gray_filter(rgb: np.array, tolerance: int | float=120)->np.array:
-    # rg_diff = (abs(rgb[:, :, 0] - rgb[:, :, 1]) <= tolerance)
-    # rb_diff = (abs(rgb[:, :, 0] - rgb[:, :, 2]) <= tolerance)
-    # gb_diff = (abs(rgb[:, :, 1] - rgb[:, :, 2]) <= tolerance)
-    # result = ~(rg_diff & rb_diff & gb_diff)
-    result = ~((rgb[:, :, 0] < tolerance) & (rgb[:, :, 1] < tolerance) & (rgb[:, :, 2] < tolerance))
+def gray_filter(rgb: np.array, tolerance: int | float=7)->np.array:
+    rgb = rgb.astype(np.int32)
+    rg_diff = (abs(rgb[:, :, 0] - rgb[:, :, 1]) <= tolerance)
+    rb_diff = (abs(rgb[:, :, 0] - rgb[:, :, 2]) <= tolerance)
+    gb_diff = (abs(rgb[:, :, 1] - rgb[:, :, 2]) <= tolerance)
+    result = ~(rg_diff & rb_diff & gb_diff)
+    # result = ~((rgb[:, :, 0] < tolerance) & (rgb[:, :, 1] < tolerance) & (rgb[:, :, 2] < tolerance))
     return result
+
+
+def get_binary_closing(im: np.ndarray, kernel_size: int = 11) -> np.ndarray:
+    """
+    Perform binary closing operation on a given image.
+    
+    Parameters
+    ----------
+    im : numpy array
+        The image to perform the operation on.
+    kernel_size : int, optional
+        The size of the kernel used for the morphological operation.
+
+    Returns
+    -------
+    numpy array
+        The image after binary closing operation.
+    """
+    mag_binary = (im > 20).astype(np.uint8)
+    kernel = np.ones((kernel_size, kernel_size),np.uint8)
+    closing = cv2.morphologyEx(mag_binary, cv2.MORPH_CLOSE, kernel)
+    return closing
+
+
+def get_gradient_magnitude(im: np.ndarray) -> np.ndarray:
+    """
+    Calculate the gradient magnitude of a given image.
+    
+    Parameters
+    ----------
+    im : numpy array
+        The image for which to calculate the gradient magnitude.
+
+    Returns
+    -------
+    numpy array
+        The gradient magnitude of the image.
+    """
+    im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
+    ddepth = cv2.CV_32F
+    dx = cv2.Sobel(im, ddepth, 1, 0)
+    dy = cv2.Sobel(im, ddepth, 0, 1)
+    dx_abs = cv2.convertScaleAbs(dx)
+    dy_abs = cv2.convertScaleAbs(dy)
+    mag = cv2.addWeighted(dx_abs, 0.5, dy_abs, 0.5, 0)
+
+    return mag
 
 
 def scaleContourDim(contours: list, scale: int | float)->list:
@@ -145,7 +195,7 @@ def isWhitePatch(patch: np.array, thresh: int|float=240)->bool:
     return True if patch.mean() > thresh else False
 
 
-def isBlackPatch(patch: np.array, thresh: int|float=15)->bool:
+def isBlackPatch(patch: np.array, thresh: int|float=45)->bool:
     return True if patch.mean() < thresh else False
 
 
@@ -208,7 +258,7 @@ def write_tile_info(tile_df: pd.DataFrame, results: np.array, slide_id: str, til
     return tile_df
 
 
-def pen_percent(bands, pen_color):
+def pen_filter(bands, pen_color):
     r, g, b = bands[:, :, 0], bands[:, :, 1], bands[:, :, 2]
     thresholds = PENS_RGB[pen_color]
 

@@ -11,28 +11,27 @@ from slide_lib import *
 import pyarrow as pa
 import pyarrow.parquet as pq
 import yaml
-slide_annot = pd.read_csv('./slide_labels.csv', header=0)
+slide_annot = pd.read_csv('/omics/odcf/analysis/OE0606_projects/pancancer_histopathology/analysis/daruijin/brain_tumor/info/slide_labels.csv', header=0)
 
 
 def segment(wsi: openslide.OpenSlide)->tuple[list, list, Image.Image, float]:
     start_time = time.time()
     seg_level = wsi.level_count - 1
     img = np.array(wsi.read_region((0, 0), seg_level, wsi.level_dimensions[-1]).convert('RGB'))  # 最低分辨率下进行分割
-    r_pen = pen_percent(img, 'red')
-    g_pen = pen_percent(img, 'green')
-    b_pen = pen_percent(img, 'blue')
-    wo_pen_mask = ~(r_pen | g_pen | b_pen)
     img_gray = 255 - cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    bw_1 = hysteresis_threshold(img_gray).astype(np.uint8)
-    bw_2 = gray_filter(img)
-    bw = move_small((bw_1 & bw_2 & wo_pen_mask)).astype(np.uint8)
-    
+    # r_pen = pen_filter(img, 'red')
+    g_pen = pen_filter(img, 'green')
+    b_pen = pen_filter(img, 'blue')
+    pen_mask = ~(g_pen | b_pen)
+    bw_1 = get_binary_closing(hysteresis_threshold(img_gray).astype(np.uint8)*255, 13)
+    bw_2 = get_binary_closing(gray_filter(img).astype(np.uint8)*255, 13)
+    bw = move_small((bw_1 & bw_2 & pen_mask)).astype(np.uint8)
     scale = wsi.level_downsamples[seg_level]
-    scaled_ref_patch_area = int(512 ** 2 / scale ** 2)
+    scaled_ref_patch_area = int(256 ** 2 / scale ** 2)
 
     contours, hierarchy = cv2.findContours(bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     hierarchy = np.squeeze(hierarchy, axis=(0,))[:, 2:]
-    foreground_contours, hole_contours = filter_contours(contours, hierarchy, {'a_t':10 * scaled_ref_patch_area, 'a_h': 10 * scaled_ref_patch_area, 'max_n_holes':8})
+    foreground_contours, hole_contours = filter_contours(contours, hierarchy, {'a_t':0.2 * scaled_ref_patch_area, 'a_h':  scaled_ref_patch_area, 'max_n_holes':10})
     
     # save mask file
     line_thickness = int(100 / scale)
@@ -52,7 +51,7 @@ def patching(wsi: openslide.OpenSlide, contours: list, holes: list, tile_save_di
     highest_mag = int(wsi.properties['openslide.objective-power'])
     highest_downsample = int(highest_mag/mag_level)
     patch_level = wsi.get_best_level_for_downsample(highest_downsample)  # 最合适降采样分辨率level
-    best_downsample = highest_downsample / (highest_mag/wsi.level_downsamples[patch_level])
+    best_downsample = highest_downsample / (wsi.level_downsamples[patch_level]/wsi.level_downsamples[0])
     ref_patch_size = int(patch_size * highest_downsample)  # 最高分辨率对应尺寸
     ref_step_size = int(step_size * highest_downsample)  # 最高分辨率对应步长
     slide_id = os.path.basename(slide_path).split('.')[0]
@@ -87,6 +86,7 @@ def patching(wsi: openslide.OpenSlide, contours: list, holes: list, tile_save_di
                     'level_dim':              (wsi.level_dimensions[0][0]/highest_downsample, wsi.level_dimensions[0][1]/highest_downsample),
                     'name':                   slide_id,
                     'save_path':              tile_save_dir}
+
             attr_dict = {'coords': attr}
             os.makedirs(os.path.join(tile_save_dir, slide_id), exist_ok=True)
             final_coords = save_tiles(slide_path, asset_dict, attr_dict['coords'])
@@ -118,7 +118,8 @@ def segment_tiling(source: str, save_dir: str, tile_save_dir: str, mask_save_dir
     if source.endswith('.yaml'):
         with open(source, 'r') as f:
             slides = yaml.safe_load(f)['slide_id']
-        slides = [os.path.join('./SLIDE', slide+'.svs') for slide in slides]
+        slides = [os.path.join('/omics/odcf/analysis/OE0606_projects/pancancer_histopathology/data/UKHD_NP_HE', slide+'.svs') for slide in slides]
+        # slides = sorted(pd.read_csv(source)['file_path'].tolist())  # source是csv路径时使用
     else:
         slides = sorted(glob.glob(os.path.join(source, '*.svs')))  # source是svs路径时使用
 
