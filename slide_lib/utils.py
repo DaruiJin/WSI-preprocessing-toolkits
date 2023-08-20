@@ -107,31 +107,6 @@ def get_binary_closing(im: np.ndarray, kernel_size: int = 11) -> np.ndarray:
     return closing
 
 
-def get_gradient_magnitude(im: np.ndarray) -> np.ndarray:
-    """
-    Calculate the gradient magnitude of a given image.
-    
-    Parameters
-    ----------
-    im : numpy array
-        The image for which to calculate the gradient magnitude.
-
-    Returns
-    -------
-    numpy array
-        The gradient magnitude of the image.
-    """
-    im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
-    ddepth = cv2.CV_32F
-    dx = cv2.Sobel(im, ddepth, 1, 0)
-    dy = cv2.Sobel(im, ddepth, 0, 1)
-    dx_abs = cv2.convertScaleAbs(dx)
-    dy_abs = cv2.convertScaleAbs(dy)
-    mag = cv2.addWeighted(dx_abs, 0.5, dy_abs, 0.5, 0)
-
-    return mag
-
-
 def scaleContourDim(contours: list, scale: int | float)->list:
     return [np.array(cont * scale, dtype='int32') for cont in contours]
 
