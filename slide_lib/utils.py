@@ -75,7 +75,7 @@ def hysteresis_threshold(gray: np.array, low: int | float=20, high: int | float=
     return result
 
 
-def gray_filter(rgb: np.array, tolerance: int | float=10)->np.array:
+def gray_filter(rgb: np.array, tolerance: int | float=15)->np.array:
     rgb = rgb.astype(np.int32)
     rg_diff = (abs(rgb[:, :, 0] - rgb[:, :, 1]) <= tolerance)
     rb_diff = (abs(rgb[:, :, 0] - rgb[:, :, 2]) <= tolerance)
@@ -166,11 +166,11 @@ def process_coord_candidate(coord: np.array, contour_holes: list, ref_patch_size
     else:
         return None
 
-def isWhitePatch(patch: np.array, thresh: int|float=240)->bool:
+def isWhitePatch(patch: np.array, thresh: int|float=230)->bool:
     return True if patch.mean() > thresh else False
 
 
-def isBlackPatch(patch: np.array, thresh: int|float=45)->bool:
+def isBlackPatch(patch: np.array, thresh: int|float=50)->bool:
     return True if patch.mean() < thresh else False
 
 
@@ -180,7 +180,7 @@ def tileWriter(wsi: openslide.OpenSlide, coord: Union[np.array, tuple], attr_dic
     patch = np.array(patch.resize((attr_dict['patch_size'], attr_dict['patch_size'])))
     if not isWhitePatch(patch) and not isBlackPatch(patch):
         patch = cv2.cvtColor(patch, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(os.path.join(attr_dict['save_path'], attr_dict['name'], f"{attr_dict['name']}_x_y_{coord[0]}_{coord[1]}.png"), patch)
+        cv2.imwrite(os.path.join(attr_dict['save_path'], attr_dict['name'], f"{attr_dict['name']}_x_y_{coord[0]}_{coord[1]}.jpg"), patch)
         return coord
     else:
         return None
@@ -265,4 +265,3 @@ def pen_filter(bands, pen_color):
     # percentage = np.round(percentage, decimals=5) if percentage > 0 else 0
 
     return mask
-

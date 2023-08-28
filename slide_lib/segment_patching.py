@@ -153,8 +153,8 @@ def segment_tiling(source: str, save_dir: str, tile_save_dir: str, mask_save_dir
         tile_time += tile_time_elapsed
         stitch_time += stitch_time_elapsed
     
-    df.to_csv(os.path.join(save_dir, 'slide_info.csv'), index=False)
-    pq.write_table(pa.Table.from_pandas(tile_df), os.path.join(save_dir, 'tile_info.parquet'))
+    df.to_csv(os.path.join(save_dir, 'slide_info', f'slide_info_{index}.csv'), index=False)
+    pq.write_table(pa.Table.from_pandas(tile_df), os.path.join(save_dir, 'tile_info', f'tile_info_{index}.parquet'))
     print(f"\nslide info (mpp, magnification) saved to {os.path.join(save_dir, f'slide_info_{index}.csv')}")
     print(f"tile info (file_path, slide, family) saved to {os.path.join(save_dir, f'tile_info_{index}.parquet')}")
     seg_time /= len(df)
