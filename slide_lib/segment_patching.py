@@ -46,7 +46,7 @@ def segment(wsi: openslide.OpenSlide)->tuple[list, list, Image.Image, float]:
 
 
 def patching(wsi: openslide.OpenSlide, contours: list, holes: list, tile_save_dir: str, 
-             patch_size: float | int, mag_level: float | int, step_size: float | int, slide_path: str, tile_df: pd.DataFrame)->tuple[list, float]:
+             patch_size: float | int, mag_level: float | int, step_size: float | int, slide_path: str, tile_df: pd.DataFrame)->tuple[list, float, pd.DataFrame]:
     start_time = time.time()
     highest_mag = int(wsi.properties['openslide.objective-power'])
     highest_downsample = int(highest_mag/mag_level)
@@ -75,7 +75,7 @@ def patching(wsi: openslide.OpenSlide, contours: list, holes: list, tile_save_di
         results = pool.starmap(process_coord_candidate, iterable)
         pool.close()
         results = np.array([result for result in results if result is not None])
-        tile_df = write_tile_info(tile_df, results, slide_id, tile_save_dir, slide_annot)
+        # tile_df = write_tile_info(tile_df, results, slide_id, tile_save_dir, slide_annot)
         print('Extracted {} points within the contour'.format(len(results)))
         if len(results)>1:
             asset_dict = {'coords': results}
@@ -91,6 +91,7 @@ def patching(wsi: openslide.OpenSlide, contours: list, holes: list, tile_save_di
             os.makedirs(os.path.join(tile_save_dir, slide_id), exist_ok=True)
             final_coords = save_tiles(slide_path, asset_dict, attr_dict['coords'])
             coord_record.extend(final_coords)
+            tile_df = write_tile_info(tile_df, final_coords, slide_id, tile_save_dir, slide_annot)
     return coord_record, time.time() - start_time, tile_df
 
 
@@ -153,8 +154,10 @@ def segment_tiling(source: str, save_dir: str, tile_save_dir: str, mask_save_dir
         tile_time += tile_time_elapsed
         stitch_time += stitch_time_elapsed
     
+    os.makedirs(os.path.join(save_dir, 'slide_info'), exist_ok=True)
+    os.makedirs(os.path.join(save_dir, 'tile_info'), exist_ok=True)
     df.to_csv(os.path.join(save_dir, 'slide_info', f'slide_info_{index}.csv'), index=False)
-    pq.write_table(pa.Table.from_pandas(tile_df), os.path.join(save_dir, 'tile_info', f'tile_info_{index}.parquet'))
+    pq.write_table(pa.Table.from_pandas(tile_df), os.path.join(save_dir, 'tile_info',f'tile_info_{index}.parquet'))
     print(f"\nslide info (mpp, magnification) saved to {os.path.join(save_dir, f'slide_info_{index}.csv')}")
     print(f"tile info (file_path, slide, family) saved to {os.path.join(save_dir, f'tile_info_{index}.parquet')}")
     seg_time /= len(df)

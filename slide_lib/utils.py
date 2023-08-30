@@ -107,6 +107,31 @@ def get_binary_closing(im: np.ndarray, kernel_size: int = 11) -> np.ndarray:
     return closing
 
 
+def get_gradient_magnitude(im: np.ndarray) -> np.ndarray:
+    """
+    Calculate the gradient magnitude of a given image.
+    
+    Parameters
+    ----------
+    im : numpy array
+        The image for which to calculate the gradient magnitude.
+
+    Returns
+    -------
+    numpy array
+        The gradient magnitude of the image.
+    """
+    im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
+    ddepth = cv2.CV_32F
+    dx = cv2.Sobel(im, ddepth, 1, 0)
+    dy = cv2.Sobel(im, ddepth, 0, 1)
+    dx_abs = cv2.convertScaleAbs(dx)
+    dy_abs = cv2.convertScaleAbs(dy)
+    mag = cv2.addWeighted(dx_abs, 0.5, dy_abs, 0.5, 0)
+
+    return mag
+
+
 def scaleContourDim(contours: list, scale: int | float)->list:
     return [np.array(cont * scale, dtype='int32') for cont in contours]
 
@@ -186,7 +211,7 @@ def tileWriter(wsi: openslide.OpenSlide, coord: Union[np.array, tuple], attr_dic
         return None
 
 
-def save_tiles(slide_path: str, asset_dict: dict, attr_dict: dict)->None:
+def save_tiles(slide_path: str, asset_dict: dict, attr_dict: dict)->np.array:
     wsi = openslide.open_slide(slide_path)
     coords = asset_dict['coords']
     coords = coords[1:] if np.array_equal(coords[0], np.array([0, 0])) else coords
@@ -225,15 +250,15 @@ def DrawMapFromCoords(canvas: np.array, wsi: openslide.OpenSlide, coords: np.arr
     return Image.fromarray(canvas)
 
 
-def write_tile_info(tile_df: pd.DataFrame, results: np.array, slide_id: str, tile_save_dir: str, slide_annot: pd.DataFrame) -> None:
+def write_tile_info(tile_df: pd.DataFrame, results: np.array, slide_id: str, tile_save_dir: str, slide_annot: pd.DataFrame) -> pd.DataFrame:
     tile_annot = [slide_annot[slide_annot['slide'] == slide_id]['family'].values[0]] * len(results)
-    file_path = [os.path.join(tile_save_dir, slide_id, f"{slide_id}_x_y_{coord[0]}_{coord[1]}.png") for coord in results]
+    file_path = [f"{slide_id}_x_y_{coord[0]}_{coord[1]}.jpg" for coord in results]
     slide_info = [slide_id] * len(results)
     tile_df = pd.concat([tile_df, pd.DataFrame({'file_path': file_path, 'slide': slide_info, 'family': tile_annot})], ignore_index=True)
     return tile_df
 
 
-def pen_filter(bands, pen_color):
+def pen_filter(bands: np.array, pen_color: str)->np.array:
     r, g, b = bands[:, :, 0], bands[:, :, 1], bands[:, :, 2]
     thresholds = PENS_RGB[pen_color]
 
@@ -265,3 +290,4 @@ def pen_filter(bands, pen_color):
     # percentage = np.round(percentage, decimals=5) if percentage > 0 else 0
 
     return mask
+
