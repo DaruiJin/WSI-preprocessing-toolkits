@@ -22,14 +22,14 @@ def segment(wsi: openslide.OpenSlide)->tuple[list, list, Image.Image, float]:
     # r_pen = pen_filter(img, 'red')
     g_pen = pen_filter(img, 'green')
     b_pen = pen_filter(img, 'blue')
-    pen_mask = ~(g_pen | b_pen)
+    pen_mask = ~(cv2.dilate(get_binary_closing((g_pen | b_pen).astype(int)*255, 13)*255, np.ones((7, 7), np.uint8), iterations=1).astype(bool))
     bw_1 = get_binary_closing(hysteresis_threshold(img_gray).astype(np.uint8)*255, 13)
-    bw_2 = get_binary_closing(gray_filter(img).astype(np.uint8)*255, 13)
-    bw = move_small((bw_1 & bw_2 & pen_mask)).astype(np.uint8)
+    # bw_2 = get_binary_closing(gray_filter(img).astype(np.uint8)*255, 13)
+    bw = move_small((bw_1 & pen_mask)).astype(np.uint8)
     scale = wsi.level_downsamples[seg_level]
     scaled_ref_patch_area = int(256 ** 2 / scale ** 2)
 
-    contours, hierarchy = cv2.findContours(bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(bw, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
     hierarchy = np.squeeze(hierarchy, axis=(0,))[:, 2:]
     foreground_contours, hole_contours = filter_contours(contours, hierarchy, {'a_t':0.2 * scaled_ref_patch_area, 'a_h':  scaled_ref_patch_area, 'max_n_holes':10})
     
@@ -75,7 +75,6 @@ def patching(wsi: openslide.OpenSlide, contours: list, holes: list, tile_save_di
         results = pool.starmap(process_coord_candidate, iterable)
         pool.close()
         results = np.array([result for result in results if result is not None])
-        # tile_df = write_tile_info(tile_df, results, slide_id, tile_save_dir, slide_annot)
         print('Extracted {} points within the contour'.format(len(results)))
         if len(results)>1:
             asset_dict = {'coords': results}
@@ -91,8 +90,8 @@ def patching(wsi: openslide.OpenSlide, contours: list, holes: list, tile_save_di
             os.makedirs(os.path.join(tile_save_dir, slide_id), exist_ok=True)
             final_coords = save_tiles(slide_path, asset_dict, attr_dict['coords'])
             coord_record.extend(final_coords)
-            tile_df = write_tile_info(tile_df, final_coords, slide_id, tile_save_dir, slide_annot)
-    return coord_record, time.time() - start_time, tile_df
+            # tile_df = write_tile_info(tile_df, final_coords, slide_id, tile_save_dir, slide_annot)
+    return coord_record, time.time() - start_time #, tile_df
 
 
 def stitching(wsi: openslide.OpenSlide, coords: list, patch_size: float | int, mag_level: float | int, step_size: float | int, 
@@ -118,12 +117,12 @@ def segment_tiling(source: str, save_dir: str, tile_save_dir: str, mask_save_dir
                    patch_size: int | float =256, mag_level: int | float =20, step_size: int | float =256, index: int = 0)->None:
     if source.endswith('.yaml'):
         with open(source, 'r') as f:
-            slides = yaml.safe_load(f)['slide_id']
-        slides = [os.path.join('/omics/odcf/analysis/OE0606_projects/pancancer_histopathology/data/UKHD_NP_HE', slide+'.svs') for slide in slides]
+            slides = yaml.safe_load(f)['slide_path']
+        # slides = [os.path.join('/omics/odcf/analysis/OE0606_projects/pancancer_histopathology/data/UKHD_NP_HE_NEW_BATCH_1', slide+'.svs') for slide in slides]
         # slides = sorted(pd.read_csv(source)['file_path'].tolist())  # source是csv路径时使用
     else:
-        slides = sorted(glob.glob(os.path.join(source, '*.svs')))  # source是svs路径时使用
-
+        slides = sorted(glob.glob(os.path.join(source, '*.svs')))+sorted(glob.glob(os.path.join(source, '*.ndpi')))  # source是svs路径时使用
+            
     d = {}
     d["slide_path"] = slides
     df = pd.DataFrame(d)
@@ -140,11 +139,15 @@ def segment_tiling(source: str, save_dir: str, tile_save_dir: str, mask_save_dir
         print(f"\nprogress: {i+1}/{len(df)}")
         print(f"processing {slide_name}")
         wsi = openslide.open_slide(slide_path)
-        df.loc[i, 'slide_mpp'] = float(wsi.properties['aperio.MPP'])
+        try:
+            df.loc[i, 'slide_mpp'] = float(wsi.properties['aperio.MPP'])
+        except:
+            df.loc[i, 'slide_mpp'] = float(wsi.properties['openslide.mpp-y'])
+            
         df.loc[i, 'slide_mag'] = float(wsi.properties['openslide.objective-power'])
         contour_coord, hole_coord, mask, seg_time_elapsed = segment(wsi)
         mask.save(os.path.join(mask_save_dir, f'{slide_name}.png'))
-        coords, tile_time_elapsed, tile_df = patching(wsi, contour_coord, hole_coord, tile_save_dir, patch_size, mag_level, step_size, slide_path, tile_df)
+        coords, tile_time_elapsed = patching(wsi, contour_coord, hole_coord, tile_save_dir, patch_size, mag_level, step_size, slide_path, tile_df)
         heatmap, stitch_time_elapsed = stitching(wsi, coords, patch_size, mag_level, step_size, downscale=64)
         heatmap.save(os.path.join(stitch_save_dir, slide_name+'.png'))
         print(f"segmentation took {seg_time_elapsed:.2f} seconds")
@@ -155,11 +158,11 @@ def segment_tiling(source: str, save_dir: str, tile_save_dir: str, mask_save_dir
         stitch_time += stitch_time_elapsed
     
     os.makedirs(os.path.join(save_dir, 'slide_info'), exist_ok=True)
-    os.makedirs(os.path.join(save_dir, 'tile_info'), exist_ok=True)
+    # os.makedirs(os.path.join(save_dir, 'tile_info'), exist_ok=True)
     df.to_csv(os.path.join(save_dir, 'slide_info', f'slide_info_{index}.csv'), index=False)
-    pq.write_table(pa.Table.from_pandas(tile_df), os.path.join(save_dir, 'tile_info',f'tile_info_{index}.parquet'))
+    # pq.write_table(pa.Table.from_pandas(tile_df), os.path.join(save_dir, 'tile_info',f'tile_info_{index}.parquet'))
     print(f"\nslide info (mpp, magnification) saved to {os.path.join(save_dir, f'slide_info_{index}.csv')}")
-    print(f"tile info (file_path, slide, family) saved to {os.path.join(save_dir, f'tile_info_{index}.parquet')}")
+    # print(f"tile info (file_path, slide, family) saved to {os.path.join(save_dir, f'tile_info_{index}.parquet')}")
     seg_time /= len(df)
     tile_time /= len(df)
     stitch_time /= len(df)

@@ -75,36 +75,13 @@ def hysteresis_threshold(gray: np.array, low: int | float=20, high: int | float=
     return result
 
 
-def gray_filter(rgb: np.array, tolerance: int | float=15)->np.array:
+def gray_filter(rgb: np.array, tolerance: int | float=23)->np.array:
     rgb = rgb.astype(np.int32)
-    rg_diff = (abs(rgb[:, :, 0] - rgb[:, :, 1]) <= tolerance)
-    rb_diff = (abs(rgb[:, :, 0] - rgb[:, :, 2]) <= tolerance)
-    gb_diff = (abs(rgb[:, :, 1] - rgb[:, :, 2]) <= tolerance)
+    rg_diff = (abs(rgb[:, :, 0].mean() - rgb[:, :, 1].mean()) <= tolerance)
+    rb_diff = (abs(rgb[:, :, 0].mean() - rgb[:, :, 2].mean()) <= tolerance)
+    gb_diff = (abs(rgb[:, :, 1].mean() - rgb[:, :, 2].mean()) <= tolerance)
     result = ~(rg_diff & rb_diff & gb_diff)
-    # result = ~((rgb[:, :, 0] < tolerance) & (rgb[:, :, 1] < tolerance) & (rgb[:, :, 2] < tolerance))
     return result
-
-
-def get_binary_closing(im: np.ndarray, kernel_size: int = 11) -> np.ndarray:
-    """
-    Perform binary closing operation on a given image.
-    
-    Parameters
-    ----------
-    im : numpy array
-        The image to perform the operation on.
-    kernel_size : int, optional
-        The size of the kernel used for the morphological operation.
-
-    Returns
-    -------
-    numpy array
-        The image after binary closing operation.
-    """
-    mag_binary = (im > 20).astype(np.uint8)
-    kernel = np.ones((kernel_size, kernel_size),np.uint8)
-    closing = cv2.morphologyEx(mag_binary, cv2.MORPH_CLOSE, kernel)
-    return closing
 
 
 def get_gradient_magnitude(im: np.ndarray) -> np.ndarray:
@@ -130,6 +107,49 @@ def get_gradient_magnitude(im: np.ndarray) -> np.ndarray:
     mag = cv2.addWeighted(dx_abs, 0.5, dy_abs, 0.5, 0)
 
     return mag
+
+
+def get_binary_closing(im: np.ndarray, kernel_size: int = 11) -> np.ndarray:
+    """
+    Perform binary closing operation on a given image.
+    
+    Parameters
+    ----------
+    im : numpy array
+        The image to perform the operation on.
+    kernel_size : int, optional
+        The size of the kernel used for the morphological operation.
+
+    Returns
+    -------
+    numpy array
+        The image after binary closing operation.
+    """
+    mag_binary = (im > 20).astype(np.uint8)
+    kernel = np.ones((kernel_size, kernel_size),np.uint8)
+    closing = cv2.morphologyEx(mag_binary, cv2.MORPH_CLOSE, kernel)
+    return closing
+
+
+def get_magnitude_closing(im: np.ndarray, kernel_size: int = 11) -> np.ndarray:
+    """
+    Perform binary closing operation on the gradient magnitude of a given image.
+    
+    Parameters
+    ----------
+    im : numpy array
+        The image to perform the operation on.
+    kernel_size : int, optional
+        The size of the kernel used for the morphological operation.
+
+    Returns
+    -------
+    numpy array
+        The image after binary closing operation.
+    """
+    mag = get_gradient_magnitude(im)
+    closing = get_binary_closing(mag, kernel_size)
+    return closing
 
 
 def scaleContourDim(contours: list, scale: int | float)->list:
@@ -203,7 +223,7 @@ def tileWriter(wsi: openslide.OpenSlide, coord: Union[np.array, tuple], attr_dic
     patch = wsi.read_region(coord, attr_dict['patch_level'], 
                             (int(attr_dict['patch_size']*attr_dict['downsample']), int(attr_dict['patch_size']*attr_dict['downsample']))).convert('RGB')
     patch = np.array(patch.resize((attr_dict['patch_size'], attr_dict['patch_size'])))
-    if not isWhitePatch(patch) and not isBlackPatch(patch):
+    if not isWhitePatch(patch) and not isBlackPatch(patch) and get_magnitude_closing(patch).mean() > 0.5 and gray_filter(patch):
         patch = cv2.cvtColor(patch, cv2.COLOR_RGB2BGR)
         cv2.imwrite(os.path.join(attr_dict['save_path'], attr_dict['name'], f"{attr_dict['name']}_x_y_{coord[0]}_{coord[1]}.jpg"), patch)
         return coord
